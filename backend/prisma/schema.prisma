@@ -1,0 +1,175 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ───────────────────────────────────────────────
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+// Type de créneau recherché (cahier des charges §6 : toggle leçon / examen,
+// module examen prévu mais hors priorité V0)
+enum CourseType {
+  LECON_CONDUITE
+  PLACE_EXAMEN
+}
+
+// Moment de la journée façon prototype (AppHeader "Matin/Midi/Après-midi/Soir")
+enum TimeSlot {
+  MATIN
+  MIDI
+  APRES_MIDI
+  SOIR
+}
+
+enum SlotAlertStatus {
+  NOUVEAU
+  NOTIFIE
+  RESERVE
+  MANQUE
+  EXPIRE
+}
+
+enum BookingStatus {
+  CONFIRMEE
+  ANNULEE
+  TERMINEE
+}
+
+// ─── Models ──────────────────────────────────────────────
+
+model User {
+  id                     String    @id @default(cuid())
+  email                  String    @unique
+  full_name              String?
+  password               String?
+  role                   UserRole  @default(USER)
+  failed_login_attempts  Int       @default(0)
+  blocked_until          DateTime?
+  email_verified         Boolean   @default(false)
+  verification_token     String?
+  created_at             DateTime  @default(now())
+
+  // Connexion au compte élève Stych (cahier des charges §7/§8 : jamais le
+  // mot de passe Stych en clair, seulement la session obtenue après login).
+  stych_session_cookie String?
+  stych_csrf_token     String?
+  stych_connected_at   DateTime?
+  // Posé quand la veille détecte que la session Stych n'est plus valide
+  // (cookie/CSRF expiré) — permet de distinguer "jamais connecté" de
+  // "connecté puis expiré" côté frontend, et sert de garde anti-spam email
+  // (tant que non reconnecté, l'utilisateur sort de la boucle de polling).
+  stych_session_expired_at DateTime?
+  stych_agence         String?   @default("Strasbourg")
+  stych_polling_paused Boolean   @default(false)
+
+  search_profiles SearchProfile[]
+  slot_alerts     SlotAlert[]
+  bookings        Booking[]
+  polling_logs    PollingLog[]
+}
+
+model LoginAttempt {
+  id         String   @id @default(cuid())
+  email      String
+  ip_address String?
+  success    Boolean
+  reason     String?
+  created_at DateTime @default(now())
+}
+
+// Préférences façon "Karos" — un ou plusieurs profils par utilisateur
+// (ex: "Semaine normale" vs "Vacances"), un seul actif à la fois pour le
+// polling (cahier des charges §6 "Préférences type Karos").
+model SearchProfile {
+  id          String     @id @default(cuid())
+  user_id     String
+  name        String     @default("Semaine normale")
+  is_active   Boolean    @default(true)
+  days        Int[]      @default([]) // 1=Lundi ... 7=Dimanche (aryIdDay Stych)
+  time_slots  TimeSlot[] @default([])
+  course_type CourseType @default(LECON_CONDUITE)
+  moniteur_id String? // filtre optionnel par moniteur (ids_ut_moniteur)
+  duration_minutes Int? // 45 ou 90 (aryDuration)
+  created_at  DateTime   @default(now())
+  updated_at  DateTime   @updatedAt
+
+  user        User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  slot_alerts SlotAlert[]
+
+  @@index([user_id])
+}
+
+// Créneau détecté côté Stych (rowsProposition) — cf. annexe technique du
+// cahier des charges pour la structure d'origine.
+model SlotAlert {
+  id                String           @id @default(cuid())
+  user_id           String
+  search_profile_id String?
+  status            SlotAlertStatus  @default(NOUVEAU)
+
+  stych_moniteur_id String?
+  moniteur_name     String?
+  stych_lac_id      String?
+  lieu_name         String?
+  course_date       DateTime
+  heure_debut       String
+  heure_fin         String
+  nb_credit         Float?
+  nb_heure          Float?
+
+  raw_payload  Json? // rowsProposition[i] brut, pour debug/rejouer
+  detected_at  DateTime  @default(now())
+  notified_at  DateTime?
+
+  user           User           @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  search_profile SearchProfile? @relation(fields: [search_profile_id], references: [id])
+  booking        Booking?
+
+  @@index([user_id, status])
+}
+
+// Réservation confirmée côté Stych (confirm-planning-proposition)
+model Booking {
+  id             String        @id @default(cuid())
+  user_id        String
+  slot_alert_id  String?       @unique
+  status         BookingStatus @default(CONFIRMEE)
+
+  moniteur_name String?
+  lieu_name     String?
+  course_date   DateTime
+  heure_debut   String
+  heure_fin     String
+  nb_credit     Float?
+  nb_heure      Float?
+
+  stych_confirmation_ref String?
+  confirmed_at            DateTime @default(now())
+
+  user       User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  slot_alert SlotAlert? @relation(fields: [slot_alert_id], references: [id])
+
+  @@index([user_id])
+}
+
+// Historique des cycles de veille (widget "Dernière vérification" du prototype)
+model PollingLog {
+  id           String   @id @default(cuid())
+  user_id      String
+  ran_at       DateTime @default(now())
+  slots_found  Int      @default(0)
+  success      Boolean  @default(true)
+  error_message String?
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, ran_at])
+}

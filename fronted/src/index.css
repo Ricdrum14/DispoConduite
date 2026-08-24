@@ -1,0 +1,99 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Polices Manrope/DM Sans chargées via <link> dans index.html (cf. cahier
+   des charges §9 et header du prototype DispoConduite.full.jsx). */
+
+/* Palette du prototype DispoConduite.full.jsx — univers "route/trajet" façon
+   Karos/BlaBlaCar : orange corail sur fond neutre, cf. cahier des charges §9. */
+:root {
+  --background: hsl(36 33% 97%);
+  --foreground: hsl(215 28% 14%);
+  --card: hsl(0 0% 100%);
+  --card-foreground: hsl(215 28% 14%);
+  --popover: hsl(0 0% 100%);
+  --popover-foreground: hsl(215 28% 14%);
+  --primary: hsl(12 91% 61%);
+  --primary-foreground: hsl(0 0% 100%);
+  --secondary: hsl(35 30% 92%);
+  --secondary-foreground: hsl(215 28% 14%);
+  --muted: hsl(35 30% 92%);
+  --muted-foreground: hsl(215 15% 45%);
+  --accent: hsl(12 89% 94%);
+  --accent-foreground: hsl(12 80% 32%);
+  --destructive: hsl(0 72% 51%);
+  --border: hsl(34 18% 85%);
+  --input: hsl(34 18% 85%);
+  --ring: hsl(12 91% 61%);
+  --radius: 1rem;
+  --font-heading: 'Manrope', ui-sans-serif, sans-serif;
+  --font-body: 'DM Sans', ui-sans-serif, sans-serif;
+  --font-display: 'Manrope', ui-sans-serif, sans-serif;
+}
+
+.dark {
+  --background: hsl(215 28% 10%);
+  --foreground: hsl(36 20% 95%);
+  --card: hsl(215 24% 14%);
+  --card-foreground: hsl(36 20% 95%);
+  --popover: hsl(215 24% 14%);
+  --popover-foreground: hsl(36 20% 95%);
+  --primary: hsl(12 91% 61%);
+  --primary-foreground: hsl(0 0% 100%);
+  --secondary: hsl(215 20% 20%);
+  --secondary-foreground: hsl(36 20% 95%);
+  --muted: hsl(215 20% 20%);
+  --muted-foreground: hsl(215 12% 65%);
+  --accent: hsl(12 60% 22%);
+  --accent-foreground: hsl(12 89% 90%);
+  --destructive: hsl(0 70% 55%);
+  --border: hsl(215 18% 24%);
+  --input: hsl(215 18% 24%);
+  --ring: hsl(12 91% 61%);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --font-heading: var(--font-heading);
+  --font-body: var(--font-body);
+  --font-display: var(--font-display);
+  --radius-sm: calc(var(--radius) - 6px);
+  --radius-md: calc(var(--radius) - 4px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+* {
+  border-color: var(--border);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-body);
+  margin: 0;
+}
+
+.font-display,
+.font-heading {
+  font-family: var(--font-heading);
+}
