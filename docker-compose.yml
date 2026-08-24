@@ -34,7 +34,9 @@ services:
       STYCH_POLL_INTERVAL_MINUTES: ${STYCH_POLL_INTERVAL_MINUTES:-10}
       NODE_ENV: production
     ports:
-      - '3000:3000'
+      # Port 3000 déjà pris sur le serveur (couple2gether) — le conteneur
+      # écoute toujours sur 3000 en interne, seul le port exposé à l'hôte change.
+      - '3001:3000'
 
   frontend:
     build:
