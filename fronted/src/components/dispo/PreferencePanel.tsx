@@ -41,7 +41,7 @@ export function PreferencePanel({ open, prefs, saving, onChange, onSave, onClose
     });
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end bg-foreground/35 p-3 backdrop-blur-sm sm:items-center sm:justify-center">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/35 p-3 backdrop-blur-sm">
       <section className="max-h-[85vh] w-full overflow-y-auto rounded-3xl bg-card p-6 shadow-2xl sm:max-w-lg">
         <div className="flex items-start justify-between">
           <div><h2 className="font-display text-2xl font-bold">Mes préférences</h2><p className="mt-1 text-sm text-muted-foreground">Touchez pour activer ou désactiver.</p></div>
