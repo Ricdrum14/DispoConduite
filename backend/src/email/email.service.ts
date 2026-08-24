@@ -6,6 +6,10 @@ import { Resend } from 'resend';
 export class EmailService {
   private readonly resend: Resend | null;
   private readonly frontendUrl: string;
+  // Domaine d'expédition — doit être un domaine vérifié dans Resend (voir
+  // les enregistrements DNS resend._domainkey / send.<domaine>), pas
+  // forcément le même que celui du frontend.
+  private readonly fromDomain: string;
   private readonly logger = new Logger(EmailService.name);
 
   constructor(private readonly config: ConfigService) {
@@ -17,6 +21,7 @@ export class EmailService {
       this.logger.warn('RESEND_API_KEY absente — les emails ne seront pas envoyés (juste loggués).');
     }
     this.frontendUrl = config.get<string>('FRONTEND_URL') ?? 'http://localhost:5173';
+    this.fromDomain = config.get<string>('EMAIL_FROM_DOMAIN') ?? 'dispoconduite.fr';
   }
 
   async sendVerificationEmail(to: string, token: string): Promise<void> {
@@ -27,7 +32,7 @@ export class EmailService {
     }
     try {
       await this.resend.emails.send({
-        from: 'DispoConduite <noreply@dispoconduite.fr>',
+        from: `DispoConduite <noreply@${this.fromDomain}>`,
         to,
         subject: 'Vérifiez votre adresse email — DispoConduite',
         html: this.verificationTemplate(link),
@@ -54,7 +59,7 @@ export class EmailService {
     }
     try {
       await this.resend.emails.send({
-        from: 'DispoConduite <alertes@dispoconduite.fr>',
+        from: `DispoConduite <alertes@${this.fromDomain}>`,
         to,
         subject: 'Un créneau vient de se libérer 🚗',
         html: this.slotFoundTemplate(dateLabel, slot, this.frontendUrl),
@@ -74,7 +79,7 @@ export class EmailService {
     }
     try {
       await this.resend.emails.send({
-        from: 'DispoConduite <alertes@dispoconduite.fr>',
+        from: `DispoConduite <alertes@${this.fromDomain}>`,
         to,
         subject: 'Ta connexion Stych a expiré — reconnecte-toi',
         html: this.sessionExpiredTemplate(link),

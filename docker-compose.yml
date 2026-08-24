@@ -30,6 +30,7 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM_DOMAIN: ${EMAIL_FROM_DOMAIN:-dispoconduite.fr}
       STYCH_POLL_INTERVAL_MINUTES: ${STYCH_POLL_INTERVAL_MINUTES:-10}
       NODE_ENV: production
     ports:
