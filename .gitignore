@@ -1,0 +1,2 @@
+# Fichier lu par docker-compose.yml à la racine — jamais versionné (secrets).
+.env

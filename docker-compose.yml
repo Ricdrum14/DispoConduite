@@ -1,0 +1,51 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: dispoconduite_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-dispouser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dispopass}
+      POSTGRES_DB: ${POSTGRES_DB:-dispoconduite}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-dispouser}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    container_name: dispoconduite_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-dispouser}:${POSTGRES_PASSWORD:-dispopass}@postgres:5432/${POSTGRES_DB:-dispoconduite}
+      JWT_SECRET: ${JWT_SECRET}
+      PORT: 3000
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      STYCH_POLL_INTERVAL_MINUTES: ${STYCH_POLL_INTERVAL_MINUTES:-10}
+      NODE_ENV: production
+    ports:
+      - '3000:3000'
+
+  frontend:
+    build:
+      context: ./fronted
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3000}
+    container_name: dispoconduite_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - '5173:80'
+
+volumes:
+  pgdata:
