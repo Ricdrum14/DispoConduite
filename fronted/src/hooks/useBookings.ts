@@ -20,3 +20,14 @@ export function useConfirmBookingFromAlert() {
     },
   });
 }
+
+export function useCancelBooking() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (bookingId: string) =>
+      api.patch<Booking>(`/bookings/${bookingId}/cancel`).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['bookings'] });
+    },
+  });
+}

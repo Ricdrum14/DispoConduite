@@ -61,4 +61,24 @@ export class BookingsService {
       });
     });
   }
+
+  /**
+   * Marque une réservation comme annulée — pour le cas où l'élève a supprimé
+   * le cours depuis Stych directement (pas de webhook Stych pour nous le
+   * dire, cf. le risque "confirmation de réservation non fiable"). Passe le
+   * statut à ANNULEE plutôt que de supprimer la ligne, pour garder une trace ;
+   * les "heures effectuées" ne comptent que les réservations CONFIRMEE.
+   */
+  async cancel(userId: string, bookingId: string) {
+    const booking = ensureOwnership(
+      await this.prisma.booking.findUnique({ where: { id: bookingId } }),
+      userId,
+      'Réservation introuvable',
+    );
+
+    return this.prisma.booking.update({
+      where: { id: booking.id },
+      data: { status: 'ANNULEE' },
+    });
+  }
 }

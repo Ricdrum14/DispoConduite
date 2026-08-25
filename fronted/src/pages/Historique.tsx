@@ -1,11 +1,18 @@
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { CalendarCheck } from 'lucide-react';
-import { useBookings } from '@/hooks/useBookings';
+import { useBookings, useCancelBooking } from '@/hooks/useBookings';
 import { formatHeure } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 
 export default function Historique() {
   const { data: bookings, isLoading } = useBookings();
+  const cancelBooking = useCancelBooking();
+
+  function handleCancel(bookingId: string) {
+    if (!confirm('Marquer ce cours comme annulé ? À faire si tu l\'as supprimé depuis Stych directement — il ne comptera plus dans tes heures effectuées.')) return;
+    cancelBooking.mutate(bookingId);
+  }
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
@@ -31,7 +38,19 @@ export default function Historique() {
                 {booking.moniteur_name ? ` · ${booking.moniteur_name}` : ''}
               </p>
             </div>
-            <span className="text-xs font-semibold rounded-full bg-secondary px-3 py-1">{booking.status}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold rounded-full bg-secondary px-3 py-1">{booking.status}</span>
+              {booking.status === 'CONFIRMEE' && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => handleCancel(booking.id)}
+                  disabled={cancelBooking.isPending}
+                >
+                  Annuler
+                </Button>
+              )}
+            </div>
           </div>
         ))}
       </div>
