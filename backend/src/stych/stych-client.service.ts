@@ -86,6 +86,7 @@ export class StychClientService {
       return response.data;
     } catch (err) {
       if (axios.isAxiosError(err) && (err.response?.status === 401 || err.response?.status === 403)) {
+        this.logger.warn(`Session expirée (HTTP ${err.response?.status}) pour l'utilisateur ${session.userId} sur ${url}`);
         throw new StychSessionExpiredError();
       }
       throw err;
@@ -93,15 +94,22 @@ export class StychClientService {
   }
 
   private async persistRenewedCookie(session: StychSession, setCookieHeaders?: string[]): Promise<void> {
-    if (!setCookieHeaders || setCookieHeaders.length === 0) return;
+    if (!setCookieHeaders || setCookieHeaders.length === 0) {
+      this.logger.debug(`Pas de Set-Cookie renvoyé par Stych pour l'utilisateur ${session.userId}`);
+      return;
+    }
     const merged = mergeSetCookie(session.sessionCookie, setCookieHeaders);
-    if (merged === session.sessionCookie) return;
+    if (merged === session.sessionCookie) {
+      this.logger.debug(`Set-Cookie reçu mais identique au cookie stocké pour l'utilisateur ${session.userId}`);
+      return;
+    }
 
     session.sessionCookie = merged;
     await this.prisma.user.update({
       where: { id: session.userId },
       data: { stych_session_cookie: merged },
     });
+    this.logger.log(`Cookie Stych renouvelé pour l'utilisateur ${session.userId}`);
   }
 
   /**
@@ -124,6 +132,7 @@ export class StychClientService {
     // sans que la session soit morte ; un faux positif ici déconnecte
     // silencieusement un compte encore valide (vécu en prod le 2026-08-16).
     if (typeof data !== 'object' || data === null) {
+      this.logger.warn(`Réponse non-JSON de Stych (session probablement expirée) pour l'utilisateur ${session.userId}`);
       throw new StychSessionExpiredError();
     }
 
