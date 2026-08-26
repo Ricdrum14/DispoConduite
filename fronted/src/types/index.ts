@@ -49,4 +49,5 @@ export interface StychStatus {
   sessionExpired: boolean;
   agence: string | null;
   pollingPaused: boolean;
+  autoBookingEnabled: boolean;
 }

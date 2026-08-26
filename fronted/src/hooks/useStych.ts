@@ -40,3 +40,11 @@ export function useTogglePolling() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['stych-status'] }),
   });
 }
+
+export function useToggleAutoBooking() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (enabled: boolean) => api.post(`/stych/auto-booking/${enabled ? 'enable' : 'disable'}`).then(r => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['stych-status'] }),
+  });
+}

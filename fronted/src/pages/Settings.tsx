@@ -1,14 +1,15 @@
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { LogOut, ShieldCheck, ShieldX } from 'lucide-react';
+import { LogOut, ShieldCheck, ShieldX, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
-import { useStychStatus, useDisconnectStych } from '@/hooks/useStych';
+import { useStychStatus, useDisconnectStych, useToggleAutoBooking } from '@/hooks/useStych';
 
 export default function Settings() {
   const { user, logout } = useAuth();
   const { data: status } = useStychStatus();
   const disconnectStych = useDisconnectStych();
+  const toggleAutoBooking = useToggleAutoBooking();
   const navigate = useNavigate();
 
   const disconnect = async () => {
@@ -18,6 +19,16 @@ export default function Settings() {
       navigate('/onboarding');
     } catch {
       toast.error('Impossible de déconnecter le compte Stych — réessaie.');
+    }
+  };
+
+  const toggleAuto = async () => {
+    const next = !(status?.autoBookingEnabled ?? false);
+    try {
+      await toggleAutoBooking.mutateAsync(next);
+      toast.success(next ? 'Réservation automatique activée' : 'Réservation automatique désactivée');
+    } catch {
+      toast.error('Impossible de changer ce réglage — réessaie.');
     }
   };
 
@@ -62,6 +73,31 @@ export default function Settings() {
           </Button>
         )}
       </section>
+
+      {status?.connected && (
+        <section className="rounded-3xl border bg-card p-5 sm:p-6">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="font-display font-bold flex items-center gap-1.5">
+                <Zap className="h-4 w-4 text-primary" /> Réservation automatique
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Quand activé, DispoConduite réserve directement les créneaux qui correspondent à tes préférences,
+                sans attendre que tu confirmes chaque fois.
+              </p>
+            </div>
+            <Button
+              variant={status?.autoBookingEnabled ? 'default' : 'outline'}
+              size="sm"
+              onClick={toggleAuto}
+              disabled={toggleAutoBooking.isPending}
+              className="shrink-0"
+            >
+              {status?.autoBookingEnabled ? 'Activée' : 'Désactivée'}
+            </Button>
+          </div>
+        </section>
+      )}
 
       <Button variant="destructive" onClick={logout} className="gap-2">
         <LogOut className="h-4 w-4" /> Se déconnecter

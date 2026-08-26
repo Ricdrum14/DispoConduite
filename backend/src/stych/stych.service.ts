@@ -59,12 +59,18 @@ export class StychService {
       sessionExpired: !!user.stych_session_expired_at,
       agence: user.stych_agence,
       pollingPaused: user.stych_polling_paused,
+      autoBookingEnabled: user.auto_booking_enabled,
     };
   }
 
   async setPollingPaused(userId: string, paused: boolean) {
     await this.prisma.user.update({ where: { id: userId }, data: { stych_polling_paused: paused } });
     return { pollingPaused: paused };
+  }
+
+  async setAutoBooking(userId: string, enabled: boolean) {
+    await this.prisma.user.update({ where: { id: userId }, data: { auto_booking_enabled: enabled } });
+    return { autoBookingEnabled: enabled };
   }
 
   /** Récupère les créneaux Stych bruts pour un utilisateur connecté (usage manuel/debug). */

@@ -44,6 +44,16 @@ export class StychController {
     return this.stychService.setPollingPaused(req.user.id, false);
   }
 
+  @Post('auto-booking/enable')
+  enableAutoBooking(@Req() req: any) {
+    return this.stychService.setAutoBooking(req.user.id, true);
+  }
+
+  @Post('auto-booking/disable')
+  disableAutoBooking(@Req() req: any) {
+    return this.stychService.setAutoBooking(req.user.id, false);
+  }
+
   // Rafraîchissement manuel ("Vérifier maintenant" côté dashboard), en plus
   // du cycle de veille automatique (voir polling/).
   @Get('slots')

@@ -52,7 +52,7 @@ export class PollingService implements OnModuleInit {
       include: { search_profiles: { where: { is_active: true } } },
     });
     if (!user || !user.stych_session_cookie || user.stych_polling_paused) return;
-    await this.pollUser(user.id, user.search_profiles);
+    await this.pollUser(user);
   }
 
   async pollAllUsers() {
@@ -67,13 +67,19 @@ export class PollingService implements OnModuleInit {
       // veut surtout pas que ça saute hors de la boucle et saute tous les
       // utilisateurs suivants pour ce cycle — chaque utilisateur doit être
       // totalement isolé des autres.
-      await this.pollUser(user.id, user.search_profiles).catch((err) =>
+      await this.pollUser(user).catch((err) =>
         this.logger.error(`Échec inattendu (hors try/catch interne) pour l'utilisateur ${user.id}`, err),
       );
     }
   }
 
-  private async pollUser(userId: string, activeProfiles: { id: string; days: number[]; time_slots: any[]; moniteur_id: string | null }[]) {
+  private async pollUser(user: {
+    id: string;
+    email: string;
+    auto_booking_enabled: boolean;
+    search_profiles: { id: string; days: number[]; time_slots: any[]; moniteur_id: string | null }[];
+  }) {
+    const userId = user.id;
     try {
       const session = await this.stychService.getSessionOrThrow(userId);
       const { slots, pointsDeCours } = await this.stychClient.fetchAvailableSlots(session);
@@ -81,10 +87,10 @@ export class PollingService implements OnModuleInit {
       await this.markGoneAlerts(userId, slots);
 
       let created = 0;
-      for (const profile of activeProfiles) {
+      for (const profile of user.search_profiles) {
         const matching = slots.filter((slot) => StychService.matchesProfile(slot, profile));
         for (const slot of matching) {
-          const isNew = await this.createAlertIfNew(userId, profile.id, slot, pointsDeCours);
+          const isNew = await this.createAlertIfNew(user, profile.id, slot, pointsDeCours);
           if (isNew) created += 1;
         }
       }
@@ -142,11 +148,12 @@ export class PollingService implements OnModuleInit {
 
   /** Évite les doublons : une alerte identique (moniteur+date+heure) déjà active n'est pas recréée. */
   private async createAlertIfNew(
-    userId: string,
+    user: { id: string; email: string; auto_booking_enabled: boolean },
     searchProfileId: string,
     slot: StychSlot,
     pointsDeCours: unknown[],
   ): Promise<boolean> {
+    const userId = user.id;
     const courseDate = new Date(slot.info_date);
 
     const existing = await this.prisma.slotAlert.findFirst({
@@ -159,8 +166,6 @@ export class PollingService implements OnModuleInit {
       },
     });
     if (existing) return false;
-
-    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
 
     const alert = await this.prisma.slotAlert.create({
       data: {
@@ -181,6 +186,13 @@ export class PollingService implements OnModuleInit {
       },
     });
 
+    if (user.auto_booking_enabled) {
+      const booked = await this.tryAutoBook(user, alert, slot);
+      if (booked) return true;
+      // Tombe en fallback sur la notification manuelle si la réservation
+      // auto a échoué (créneau repris entre-temps, session Stych invalide...).
+    }
+
     await this.emailService.sendSlotFoundEmail(user.email, {
       moniteur_name: alert.moniteur_name,
       lieu_name: alert.lieu_name,
@@ -190,5 +202,55 @@ export class PollingService implements OnModuleInit {
     });
 
     return true;
+  }
+
+  /**
+   * Mode réservation automatique (paramètre utilisateur) : au lieu de
+   * s'arrêter à la SlotAlert et attendre une confirmation manuelle, on
+   * réserve directement — même flux que BookingsService.confirmFromAlert,
+   * dupliqué ici pour éviter un cycle de dépendance entre PollingModule et
+   * BookingsModule (tous deux dépendent déjà de StychModule via forwardRef).
+   */
+  private async tryAutoBook(
+    user: { id: string; email: string },
+    alert: {
+      id: string;
+      moniteur_name: string | null;
+      lieu_name: string | null;
+      course_date: Date;
+      heure_debut: string;
+      heure_fin: string;
+      nb_credit: number | null;
+      nb_heure: number | null;
+    },
+    slot: StychSlot,
+  ): Promise<boolean> {
+    try {
+      await this.stychService.confirmBookingForUser(user.id, slot);
+
+      await this.prisma.$transaction(async (tx) => {
+        await tx.slotAlert.update({ where: { id: alert.id }, data: { status: 'RESERVE' } });
+        await tx.booking.create({
+          data: {
+            user_id: user.id,
+            slot_alert_id: alert.id,
+            moniteur_name: alert.moniteur_name,
+            lieu_name: alert.lieu_name,
+            course_date: alert.course_date,
+            heure_debut: alert.heure_debut,
+            heure_fin: alert.heure_fin,
+            nb_credit: alert.nb_credit,
+            nb_heure: alert.nb_heure,
+          },
+        });
+      });
+
+      await this.emailService.sendAutoBookedEmail(user.email, alert);
+      this.logger.log(`Réservation automatique effectuée pour l'utilisateur ${user.id} (${alert.course_date.toISOString().slice(0, 10)} ${alert.heure_debut})`);
+      return true;
+    } catch (err: any) {
+      this.logger.warn(`Réservation automatique échouée pour l'utilisateur ${user.id}: ${err?.message ?? err}`);
+      return false;
+    }
   }
 }

@@ -1,11 +1,12 @@
-import { Pause, Radar } from 'lucide-react';
+import { Pause, Radar, Zap } from 'lucide-react';
 
 interface StatusHeroProps {
   active: boolean;
   onToggle: () => void;
+  autoBookingEnabled?: boolean;
 }
 
-export function StatusHero({ active, onToggle }: StatusHeroProps) {
+export function StatusHero({ active, onToggle, autoBookingEnabled }: StatusHeroProps) {
   return (
     <section className="relative overflow-hidden rounded-3xl bg-foreground p-6 text-background shadow-2xl shadow-foreground/10 sm:p-8">
       <div className="absolute -right-12 -top-12 hidden h-44 w-44 rounded-full border-[26px] border-primary/25 sm:block" />
@@ -18,10 +19,17 @@ export function StatusHero({ active, onToggle }: StatusHeroProps) {
       </svg>
       <div className="relative flex flex-col justify-between gap-7 sm:flex-row sm:items-end">
         <div>
-          <span className="inline-flex items-center gap-2 rounded-full bg-background/10 px-3 py-1.5 text-xs font-semibold">
-            <span className={`h-2 w-2 rounded-full ${active ? 'bg-primary animate-pulse' : 'bg-muted-foreground'}`} />
-            {active ? 'Veille active' : 'Veille en pause'}
-          </span>
+          <div className="flex flex-wrap gap-2">
+            <span className="inline-flex items-center gap-2 rounded-full bg-background/10 px-3 py-1.5 text-xs font-semibold">
+              <span className={`h-2 w-2 rounded-full ${active ? 'bg-primary animate-pulse' : 'bg-muted-foreground'}`} />
+              {active ? 'Veille active' : 'Veille en pause'}
+            </span>
+            {autoBookingEnabled && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/20 px-3 py-1.5 text-xs font-semibold text-primary">
+                <Zap className="h-3 w-3" /> Réservation auto
+              </span>
+            )}
+          </div>
           <h1 className="mt-5 max-w-lg font-display text-2xl font-bold tracking-tight sm:text-4xl">Votre prochain créneau est peut-être déjà en route.</h1>
           <p className="mt-3 max-w-md text-sm leading-6 text-background/65">On surveille les disponibilités selon votre semaine normale, sans rafraîchir l'application.</p>
         </div>

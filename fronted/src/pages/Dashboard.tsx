@@ -74,6 +74,7 @@ export default function Dashboard() {
         <StatusHero
           active={!(status?.pollingPaused ?? false)}
           onToggle={() => togglePolling.mutate(!(status?.pollingPaused ?? false))}
+          autoBookingEnabled={status?.autoBookingEnabled ?? false}
         />
         <div className="mt-5 grid gap-5 lg:grid-cols-[1.1fr_.9fr]">
           <div className="space-y-5">

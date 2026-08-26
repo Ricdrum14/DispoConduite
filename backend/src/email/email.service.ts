@@ -69,6 +69,33 @@ export class EmailService {
     }
   }
 
+  // Mode réservation automatique : contrairement à sendSlotFoundEmail, le
+  // cours est déjà réservé au moment de l'envoi — pas de "confirme vite".
+  async sendAutoBookedEmail(
+    to: string,
+    slot: { moniteur_name?: string | null; lieu_name?: string | null; course_date: Date; heure_debut: string; heure_fin: string },
+  ): Promise<void> {
+    const dateLabel = slot.course_date.toLocaleDateString('fr-FR', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+    });
+    if (!this.resend) {
+      this.logger.log(`[email désactivé] Réservation auto pour ${to} : ${dateLabel} ${slot.heure_debut}-${slot.heure_fin}`);
+      return;
+    }
+    try {
+      await this.resend.emails.send({
+        from: `DispoConduite <alertes@${this.fromDomain}>`,
+        to,
+        subject: 'Créneau réservé automatiquement ✅',
+        html: this.autoBookedTemplate(dateLabel, slot, this.frontendUrl),
+      });
+    } catch (err) {
+      this.logger.error('Echec envoi email de réservation automatique', err);
+    }
+  }
+
   // Envoyée une seule fois par expiration (cf. StychService.markSessionExpired
   // qui sort l'utilisateur du cycle de polling tant qu'il n'a pas reconnecté).
   async sendSessionExpiredEmail(to: string): Promise<void> {
@@ -123,6 +150,32 @@ export class EmailService {
     </a>
     <p style="margin:28px 0 0;color:#94a3b8;font-size:12px;line-height:1.6;">
       Ce lien est valide 24 heures. Si vous n'avez pas créé de compte DispoConduite, ignorez simplement cet email.
+    </p>
+  </div>
+</body>
+</html>`;
+  }
+
+  private autoBookedTemplate(
+    dateLabel: string,
+    slot: { moniteur_name?: string | null; lieu_name?: string | null; heure_debut: string; heure_fin: string },
+    frontendUrl: string,
+  ): string {
+    return `<!DOCTYPE html>
+<html lang="fr">
+<body style="margin:0;padding:40px 20px;background:#F7F1E9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:24px;padding:40px;box-shadow:0 4px 24px rgba(240,86,42,0.08);">
+    <h1 style="margin:0 0 8px;font-size:22px;color:#0f172a;">Créneau réservé automatiquement ✅</h1>
+    <p style="margin:0 0 4px;color:#0f172a;font-size:16px;font-weight:600;text-transform:capitalize;">${dateLabel}</p>
+    <p style="margin:0 0 20px;color:#64748b;font-size:15px;">
+      ${slot.heure_debut} — ${slot.heure_fin}${slot.lieu_name ? ` · ${slot.lieu_name}` : ''}${slot.moniteur_name ? ` · ${slot.moniteur_name}` : ''}
+    </p>
+    <a href="${frontendUrl}/historique"
+       style="display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#F0562A,#F0891A);color:#fff;text-decoration:none;border-radius:14px;font-weight:600;font-size:15px;">
+      Voir dans l'historique
+    </a>
+    <p style="margin:28px 0 0;color:#94a3b8;font-size:12px;line-height:1.6;">
+      Réservé automatiquement d'après tes préférences — vérifie sur ton planning Stych que le cours y apparaît bien.
     </p>
   </div>
 </body>
