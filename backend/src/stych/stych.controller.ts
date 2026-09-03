@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, forwardRef, Get, Inject, Post, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, forwardRef, Get, Inject, Post, Req, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { EmailVerifiedGuard } from '../auth/email-verified.guard';
 import { StychService } from './stych.service';
@@ -27,6 +27,24 @@ export class StychController {
     // réponse HTTP, et ses erreurs sont déjà gérées/logguées par pollUser.
     this.pollingService.pollUserNow(req.user.id).catch(() => {});
     return result;
+  }
+
+  /**
+   * Connexion sans copier-coller manuel — login scripté (email/mdp/token_csrf
+   * figés en env, voir StychService.tryAutoRelogin), pensé pour éviter à
+   * Ricardo de repasser par le formulaire DevTools à chaque expiration.
+   */
+  @UseGuards(EmailVerifiedGuard)
+  @Post('auto-connect')
+  async autoConnect(@Req() req: any) {
+    const ok = await this.stychService.tryAutoRelogin(req.user.id);
+    if (!ok) {
+      throw new BadRequestException(
+        'Connexion automatique impossible — identifiants Stych non configurés côté serveur ou refusés.',
+      );
+    }
+    this.pollingService.pollUserNow(req.user.id).catch(() => {});
+    return { connected: true };
   }
 
   @Delete('connect')

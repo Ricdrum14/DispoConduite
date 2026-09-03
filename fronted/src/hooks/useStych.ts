@@ -18,6 +18,14 @@ export function useConnectStych() {
   });
 }
 
+export function useAutoConnectStych() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post('/stych/auto-connect').then(r => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['stych-status'] }),
+  });
+}
+
 export function useDisconnectStych() {
   const qc = useQueryClient();
   return useMutation({
