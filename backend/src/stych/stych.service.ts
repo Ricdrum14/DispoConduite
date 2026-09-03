@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { StychClientService } from './stych-client.service';
@@ -12,6 +12,8 @@ const DEFAULT_ID_TYPE_COURS_CONDUITE = 2;
 
 @Injectable()
 export class StychService {
+  private readonly logger = new Logger(StychService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly stychClient: StychClientService,
@@ -56,7 +58,12 @@ export class StychService {
     const email = this.config.get<string>('STYCH_EMAIL');
     const password = this.config.get<string>('STYCH_PASSWORD');
     const csrfToken = this.config.get<string>('STYCH_CSRF_TOKEN');
-    if (!email || !password || !csrfToken) return false;
+    if (!email || !password || !csrfToken) {
+      this.logger.warn(
+        `Relogin auto impossible pour l'utilisateur ${userId} : STYCH_EMAIL/STYCH_PASSWORD/STYCH_CSRF_TOKEN manquant(s) côté serveur.`,
+      );
+      return false;
+    }
 
     try {
       const sessionCookie = await this.stychClient.login(email, password);
@@ -69,8 +76,10 @@ export class StychService {
           stych_session_expired_at: null,
         },
       });
+      this.logger.log(`Relogin auto réussi pour l'utilisateur ${userId}.`);
       return true;
-    } catch {
+    } catch (err: any) {
+      this.logger.warn(`Relogin auto échoué pour l'utilisateur ${userId}: ${err?.message ?? err}`);
       return false;
     }
   }
