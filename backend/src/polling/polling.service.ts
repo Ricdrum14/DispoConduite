@@ -73,12 +73,15 @@ export class PollingService implements OnModuleInit {
     }
   }
 
-  private async pollUser(user: {
-    id: string;
-    email: string;
-    auto_booking_enabled: boolean;
-    search_profiles: { id: string; days: number[]; time_slots: any[]; moniteur_id: string | null }[];
-  }) {
+  private async pollUser(
+    user: {
+      id: string;
+      email: string;
+      auto_booking_enabled: boolean;
+      search_profiles: { id: string; days: number[]; time_slots: any[]; moniteur_id: string | null }[];
+    },
+    isRetryAfterRelogin = false,
+  ) {
     const userId = user.id;
     try {
       const session = await this.stychService.getSessionOrThrow(userId);
@@ -108,9 +111,14 @@ export class PollingService implements OnModuleInit {
       });
 
       if (err instanceof StychSessionExpiredError) {
+        if (!isRetryAfterRelogin && (await this.stychService.tryAutoRelogin(userId))) {
+          this.logger.log(`Relogin automatique réussi pour l'utilisateur ${userId} — nouvelle tentative immédiate`);
+          return this.pollUser(user, true);
+        }
+
         await this.stychService.markSessionExpired(userId);
-        const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
-        await this.emailService.sendSessionExpiredEmail(user.email);
+        const freshUser = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+        await this.emailService.sendSessionExpiredEmail(freshUser.email);
         this.logger.warn(`Session Stych expirée pour l'utilisateur ${userId} — reconnexion nécessaire`);
         return;
       }

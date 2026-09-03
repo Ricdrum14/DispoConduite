@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { StychClientService } from './stych-client.service';
 import { ConnectStychDto } from './dto/connect-stych.dto';
@@ -14,6 +15,7 @@ export class StychService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly stychClient: StychClientService,
+    private readonly config: ConfigService,
   ) {}
 
   async connect(userId: string, dto: ConnectStychDto) {
@@ -36,6 +38,41 @@ export class StychService {
       data: { stych_session_cookie: null, stych_csrf_token: null, stych_connected_at: null, stych_session_expired_at: null },
     });
     return { connected: false };
+  }
+
+  /**
+   * Relogin scripté automatique (email + mot de passe + token_csrf figé,
+   * tous trois en variables d'environnement — V0 mono-utilisateur, voir
+   * cahier des charges) — appelé par la veille juste avant d'abandonner sur
+   * une session expirée, pour éviter d'attendre une reconnexion manuelle.
+   * Le token_csrf est observé stable dans le temps (pas scrapé dynamiquement
+   * pour l'instant) ; si Stych le fait un jour changer, cette valeur figée
+   * cessera de fonctionner et il faudra implémenter le scraping HTML.
+   * Retourne false (sans lever) si les identifiants ne sont pas configurés
+   * ou si Stych refuse le login, pour laisser l'appelant retomber sur le
+   * flux existant de reconnexion manuelle.
+   */
+  async tryAutoRelogin(userId: string): Promise<boolean> {
+    const email = this.config.get<string>('STYCH_EMAIL');
+    const password = this.config.get<string>('STYCH_PASSWORD');
+    const csrfToken = this.config.get<string>('STYCH_CSRF_TOKEN');
+    if (!email || !password || !csrfToken) return false;
+
+    try {
+      const sessionCookie = await this.stychClient.login(email, password);
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          stych_session_cookie: sessionCookie,
+          stych_csrf_token: csrfToken,
+          stych_connected_at: new Date(),
+          stych_session_expired_at: null,
+        },
+      });
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /** Appelé par la veille quand Stych rejette le cookie/token stocké — sort l'utilisateur du cycle de polling jusqu'à reconnexion manuelle. */

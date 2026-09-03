@@ -40,6 +40,20 @@ const STYCH_BASE_URL = 'https://www.stych.fr';
 const GET_PLANNING_PROPOSITION = '/elearning/planning-conduite/get-planning-proposition';
 const IS_COURS_AVAILABLE = '/elearning/planning-conduite/is-cours-available';
 const CONFIRM_PLANNING_PROPOSITION = '/elearning/planning-conduite/confirm-planning-proposition';
+const LOGIN_URL = '/connexion/0/record3';
+
+/**
+ * Construit un cookie à partir de zéro depuis les en-têtes `Set-Cookie`
+ * d'une réponse (pas de fusion avec un cookie existant, contrairement à
+ * mergeSetCookie) — utilisé juste après un login scripté, où on part
+ * d'une session anonyme.
+ */
+function buildCookieFromSetCookie(setCookieHeaders: string[]): string {
+  return setCookieHeaders
+    .map((raw) => raw.split(';', 1)[0].trim())
+    .filter((pair) => pair.includes('='))
+    .join('; ');
+}
 
 /**
  * Connecteur Stych — encapsule les appels à l'API interne (non officielle)
@@ -110,6 +124,75 @@ export class StychClientService {
       data: { stych_session_cookie: merged },
     });
     this.logger.log(`Cookie Stych renouvelé pour l'utilisateur ${session.userId}`);
+  }
+
+  /**
+   * Login scripté (email + mot de passe) — remplace la copie manuelle du
+   * cookie de session depuis DevTools.
+   *
+   * Un simple POST isolé vers /connexion/0/record3 renvoie bien un
+   * PHPSESSID mais PAS de cookie remember_me, et la session obtenue échoue
+   * sur le moindre appel API ensuite — vérifié empiriquement le 2026-09-04.
+   * Stych n'authentifie vraiment la session que si on rejoue la continuité
+   * de cookie d'un navigateur réel : charger /connexion (PHPSESSID
+   * initial), interroger /check-auth avec ce même PHPSESSID (déclenché
+   * normalement en tapant l'email), PUIS soumettre le login — les 3 appels
+   * doivent partager le même cookie. Une fois ça fait, le token_csrf figé
+   * (STYCH_CSRF_TOKEN, voir StychService.tryAutoRelogin) fonctionne
+   * directement sur la session ainsi obtenue, confirmant qu'il n'est pas
+   * lié à une session précise.
+   *
+   * `remember_me` envoyé deux fois dans le formulaire (0 puis 1 — hidden +
+   * checkbox, PHP garde la dernière valeur) pour forcer le cookie
+   * remember_me longue durée (~181 jours) en plus du PHPSESSID (~30h). Ce
+   * formulaire ne fournit pas token_csrf : il doit être scrapé séparément
+   * d'une page authentifiée, ou figé côté config comme fait ici.
+   *
+   * Détection d'échec : un login réussi renvoie toujours un cookie
+   * remember_me en plus du PHPSESSID (vérifié 2026-09-04) ; son absence est
+   * traitée comme un rejet (mauvais mot de passe, ou anti-bot).
+   */
+  async login(email: string, password: string): Promise<string> {
+    const headers = {
+      'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+      Origin: STYCH_BASE_URL,
+      Referer: `${STYCH_BASE_URL}/connexion`,
+      'X-Requested-With': 'XMLHttpRequest',
+      Accept: 'application/json, text/javascript, */*; q=0.01',
+      'User-Agent':
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    };
+
+    const initial = await axios.get(`${STYCH_BASE_URL}/connexion`, { timeout: 15000 });
+    let cookie = buildCookieFromSetCookie(initial.headers['set-cookie'] ?? []);
+
+    const checkAuthResponse = await axios.post(`${STYCH_BASE_URL}/check-auth`, new URLSearchParams({ email }), {
+      headers: { ...headers, Cookie: cookie },
+      timeout: 15000,
+    });
+    if (checkAuthResponse.headers['set-cookie']) {
+      cookie = buildCookieFromSetCookie(checkAuthResponse.headers['set-cookie']);
+    }
+
+    const loginBody = new URLSearchParams();
+    loginBody.set('email', email);
+    loginBody.set('mdp', password);
+    loginBody.set('mdp_forgotten', '0');
+    loginBody.append('remember_me', '0');
+    loginBody.append('remember_me', '1');
+    loginBody.set('submit', 'Connexion');
+
+    const loginResponse = await axios.post(`${STYCH_BASE_URL}${LOGIN_URL}`, loginBody, {
+      headers: { ...headers, Cookie: cookie },
+      timeout: 15000,
+    });
+
+    const setCookie = loginResponse.headers['set-cookie'];
+    if (!setCookie || !setCookie.some((c) => c.startsWith('remember_me='))) {
+      throw new Error('Login Stych: session non authentifiée (pas de remember_me reçu) — identifiants probablement refusés.');
+    }
+
+    return buildCookieFromSetCookie(setCookie);
   }
 
   /**
