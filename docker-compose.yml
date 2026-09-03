@@ -32,6 +32,9 @@ services:
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       EMAIL_FROM_DOMAIN: ${EMAIL_FROM_DOMAIN:-dispoconduite.fr}
       STYCH_POLL_INTERVAL_MINUTES: ${STYCH_POLL_INTERVAL_MINUTES:-10}
+      STYCH_EMAIL: ${STYCH_EMAIL:-}
+      STYCH_PASSWORD: ${STYCH_PASSWORD:-}
+      STYCH_CSRF_TOKEN: ${STYCH_CSRF_TOKEN:-}
       NODE_ENV: production
     ports:
       # Port 3000 déjà pris sur le serveur (couple2gether) — le conteneur
