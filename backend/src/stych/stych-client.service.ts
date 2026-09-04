@@ -71,12 +71,26 @@ export class StychClientService {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * `X-Requested-With`/`Accept` ajoutés le 2026-09-04 : sans eux, Stych
+   * répond parfois par le HTML de la page (au lieu du JSON attendu) même
+   * sur une session par ailleurs valide — observé de façon quasi
+   * systématique juste après un login scripté (voir StychService.login),
+   * jamais avec un cookie copié depuis un vrai navigateur. Un navigateur
+   * envoie déjà ces headers sur ses appels AJAX ; on ne faisait que Cookie +
+   * Content-Type jusqu'ici, ce qui marchait "par chance" avec un cookie
+   * riche copié à la main (dizaines de cookies annexes, tracking compris),
+   * beaucoup moins avec le cookie minimal (PHPSESSID + remember_me
+   * seulement) qu'un login scripté produit.
+   */
   private client(session: StychSession) {
     return axios.create({
       baseURL: STYCH_BASE_URL,
       headers: {
         Cookie: session.sessionCookie,
         'Content-Type': 'application/x-www-form-urlencoded',
+        'X-Requested-With': 'XMLHttpRequest',
+        Accept: 'application/json, text/javascript, */*; q=0.01',
       },
       timeout: 15000,
     });

@@ -45,6 +45,15 @@ export class PollingService implements OnModuleInit {
    * une reconnexion Stych, pour ne pas faire attendre jusqu'à 10 min le
    * prochain passage du cycle programmé (qui tourne sur une horloge fixe
    * calée sur le démarrage du serveur, pas sur l'instant de connexion).
+   *
+   * `onExpiry: 'ignore'` — le premier appel API juste après un login peut
+   * échouer de façon transitoire même sur une session par ailleurs valide
+   * (observé en prod le 2026-09-04) ; sans cette précaution, cet échec
+   * déclenchait un relogin qui pouvait lui-même reflaker, et le code
+   * finissait par effacer la session qu'on venait tout juste d'établir
+   * (l'utilisateur se retrouvait déconnecté juste après s'être connecté).
+   * On préfère ignorer l'échec ici et laisser le prochain cycle de veille
+   * programmé (qui, lui, a le droit de tenter un relogin) revérifier.
    */
   async pollUserNow(userId: string) {
     const user = await this.prisma.user.findUnique({
@@ -52,7 +61,7 @@ export class PollingService implements OnModuleInit {
       include: { search_profiles: { where: { is_active: true } } },
     });
     if (!user || !user.stych_session_cookie || user.stych_polling_paused) return;
-    await this.pollUser(user);
+    await this.pollUser(user, 'ignore');
   }
 
   async pollAllUsers() {
@@ -67,7 +76,7 @@ export class PollingService implements OnModuleInit {
       // veut surtout pas que ça saute hors de la boucle et saute tous les
       // utilisateurs suivants pour ce cycle — chaque utilisateur doit être
       // totalement isolé des autres.
-      await this.pollUser(user).catch((err) =>
+      await this.pollUser(user, 'recover').catch((err) =>
         this.logger.error(`Échec inattendu (hors try/catch interne) pour l'utilisateur ${user.id}`, err),
       );
     }
@@ -80,6 +89,7 @@ export class PollingService implements OnModuleInit {
       auto_booking_enabled: boolean;
       search_profiles: { id: string; days: number[]; time_slots: any[]; moniteur_id: string | null }[];
     },
+    onExpiry: 'recover' | 'ignore',
     isRetryAfterRelogin = false,
   ) {
     const userId = user.id;
@@ -111,9 +121,16 @@ export class PollingService implements OnModuleInit {
       });
 
       if (err instanceof StychSessionExpiredError) {
+        if (onExpiry === 'ignore') {
+          this.logger.warn(
+            `Vérification immédiate échouée pour l'utilisateur ${userId} (probablement transitoire juste après connexion) — session laissée intacte, le prochain cycle de veille programmé revérifiera.`,
+          );
+          return;
+        }
+
         if (!isRetryAfterRelogin && (await this.stychService.tryAutoRelogin(userId))) {
           this.logger.log(`Relogin automatique réussi pour l'utilisateur ${userId} — nouvelle tentative immédiate`);
-          return this.pollUser(user, true);
+          return this.pollUser(user, onExpiry, true);
         }
 
         await this.stychService.markSessionExpired(userId);
